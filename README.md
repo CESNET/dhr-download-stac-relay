@@ -1,4 +1,5 @@
 # Czech DHR Landsat processing
+
 ## HTTP Server Relay part
 
 Powered by [Sanic](https://sanic.dev/en/).
@@ -7,10 +8,10 @@ HTTP server acts as a relay between an asset link published in STAC catalog and 
 
 ### Prerequisites
 
-The **http-server/.env** file must be filled as follows:
+The **httpServer/.env** file must be filled as follows:
 
 ```bash
-SANIC__APP_NAME="landsat_http_server"
+SANIC__APP_NAME="landsat-httpServer"
 SANIC__SERVER_HOST="0.0.0.0"
 SANIC__SERVER_PORT="8080"
 
@@ -35,7 +36,7 @@ LOGGER__LOG_FILENAME="landsat_http_server.log"
 LOGGER__LOG_LEVEL=20
 ```
 
-`LOGGER__LOG_DIRECTORY` can be either relative to **http-server/** or absolute.
+`LOGGER__LOG_DIRECTORY` can be either relative to **httpServer/** or absolute.
 
 Log is rotated every day at 12:00 AM UTC.
 
@@ -54,28 +55,23 @@ Log levels are as follows:
 
 ## Running
 
-Package is using Docker. Please see the corresponding **docker-compose.yml** files for [downloader](#downloader)
-and [http-server](#http-server).
+Package is using Docker. Please see the corresponding **docker-compose.yml** file.
 
-There is not much to change. In fact just the port of **http-server** in :
+There is not much to change. In fact just the port of **httpServer** in :
 
 ```docker
-http-server:
+dhr-landsat-httpServer:
     ports:
       - "8080:8080"
 ```
 
 To run the package just install `docker` and run `docker compose up -d` command in both directories.
 
-So to run the **downloader** in folder `landsat/downloader` execute:
+So to run the **httpServer** execute:
 
 ```bash
 docker compose up -d
 ```
 
-and do the same in folder `landsat/http-server` to execute **http-server**.
-
-There is also prepared a little script to run both of these docker containers.
-
-Also in both **docker-compose.yml** files there are flags `restart: unless-stopped`, and thus after rebooting the
-machine, scripts will restart automatically.
+Also in **docker-compose.yml** files there is flag `restart: unless-stopped`, and thus after rebooting the machine,
+script will restart automatically.
