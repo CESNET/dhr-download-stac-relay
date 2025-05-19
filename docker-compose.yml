@@ -1,5 +1,5 @@
 services:
-  dhr--landsatHttpServer:
+  dhr--landsat-httpServer:
     build: ./
     volumes:
       - ./:/app
