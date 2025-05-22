@@ -2,4 +2,4 @@
 .git
 __pycache__
 log
-dhr-landsat-httpServer.env
+.env
