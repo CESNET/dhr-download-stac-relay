@@ -1,6 +1,7 @@
 services:
   dhr-landsat-httpServer:
-    build: ./
+    #build: ./
+    image: ghcr.io/matejkaj-cesnet/dhr-landsat-httpserver-ghcr:latest
     volumes:
       - ./:/app
     ports:
