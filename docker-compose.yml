@@ -1,12 +1,12 @@
 services:
   dhr-landsat-httpServer:
-    #build: ./
-    image: ghcr.io/matejkaj-cesnet/dhr-landsat-httpserver-ghcr:latest
+    build: ./
+    #image: ghcr.io/matejkaj-cesnet/dhr-landsat-httpserver-ghcr:latest
     volumes:
       - ./:/app
     ports:
       # When changing port number it must be reflected in downloader/config/landsat_config.py, s3_download_host variable
       - "8081:8080"
     env_file:
-      - .env
+      - dhr-landsat-httpServer.env
     restart: unless-stopped
