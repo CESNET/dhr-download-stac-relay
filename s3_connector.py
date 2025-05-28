@@ -10,12 +10,12 @@ import config.variables as variables
 class S3Connector:
     def __init__(
             self,
+            s3_endpoint,
+            access_key,
+            secret_key,
+            host_bucket,
             logger=logging.getLogger("S3Connector"),
-            service_name='s3',
-            s3_endpoint=variables.S3_CONNECTOR__HOST_BASE,
-            access_key=variables.S3_CONNECTOR__CREDENTIALS['access_key'],
-            secret_key=variables.S3_CONNECTOR__CREDENTIALS['secret_key'],
-            host_bucket=variables.S3_CONNECTOR__HOST_BUCKET
+            service_name='s3'
     ):
         """
         Constructor of S3Connector class

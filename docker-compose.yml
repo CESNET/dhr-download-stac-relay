@@ -1,7 +1,7 @@
 services:
-  dhr-landsat-httpServer:
+  dhr-download-stac-relay:
     #build: ./
-    image: ghcr.io/matejkaj-cesnet/dhr-landsat-httpserver-ghcr:latest
+    image: ghcr.io/matejkaj-cesnet/dhr-download-stac-relay-ghcr:latest
     #volumes:
     #  - ./:/app
     ports:

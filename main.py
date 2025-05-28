@@ -1,8 +1,10 @@
 import sys
 import re
 import os
-import logging
+import logging, logging.config
+
 from logging.handlers import TimedRotatingFileHandler
+
 from pathlib import Path
 
 from sanic_server import SanicServer
@@ -37,8 +39,60 @@ def setup_logging(current_path):
 
     return logger_http_server
 
+def setup_logging_config(current_root):
+    if variables.LOGGER__LOG_DIRECTORY[0] == '/':
+        log_dir = Path(variables.LOGGER__LOG_DIRECTORY)
+    else:
+        log_dir = Path(current_root) / variables.LOGGER__LOG_DIRECTORY
 
-logger = setup_logging(str(Path(__file__).parent.resolve()))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / variables.LOGGER__LOG_FILENAME
+
+    formatter_name = "standard_formatter"
+    stdout_handler_name = "stdout_handler"
+    rotating_handler_name = "rotating_file_handler"
+    logger_name = variables.LOGGER__NAME
+
+    config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            formatter_name: {
+                "format": "%(asctime)s [%(threadName)s] [%(levelname)s]: %(message)s"
+            }
+        },
+        "handlers": {
+            stdout_handler_name: {
+                "class": "logging.StreamHandler",
+                "level": variables.LOGGER__LOG_LEVEL,
+                "formatter": formatter_name,
+                "stream": "ext://sys.stdout"
+            },
+            rotating_handler_name: {
+                "class": "logging.handlers.TimedRotatingFileHandler",
+                "level": variables.LOGGER__LOG_LEVEL,
+                "formatter": formatter_name,
+                "filename": str(log_file),
+                "when": "midnight",
+                "backupCount": 0,  # adjust if you want to keep backups
+                "encoding": "utf8"
+                # suffix and extMatch are not configurable in dictConfig
+            }
+        },
+        "loggers": {
+            logger_name: {
+                "level": variables.LOGGER__LOG_LEVEL,
+                "handlers": [stdout_handler_name, rotating_handler_name],
+                "propagate": False
+            }
+        }
+    }
+
+    return config
+
+logging.config.dictConfig(setup_logging_config(str(Path(__file__).parent.resolve())))
+#logger = setup_logging(str(Path(__file__).parent.resolve()))
+logger = logging.getLogger(variables.LOGGER__NAME)
 
 server = SanicServer(logger=logger)
 app = server.get_app()
