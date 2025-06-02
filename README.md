@@ -4,7 +4,8 @@
 
 Powered by [Sanic](https://sanic.dev/en/).
 
-HTTP server acts as a relay between an asset link published in STAC catalog and S3 storage.
+This HTTP server acts as a relay between an asset link published in CESNET's [STAC catalog](https://stac.cesnet.cz/)
+and CESNET's [S3 storage](https://docs.du.cesnet.cz/en/docs/object-storage-s3/s3-service).
 
 ### Prerequisites
 
@@ -21,9 +22,14 @@ S3_CONNECTOR__ACCESS_KEY="1234567890ABCDEFGHIJ"
 S3_CONNECTOR__SECRET_KEY="123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcde"
 ```
 
+Note: file **example.env** can be renamed to just **.env** and filled by user as desired.
+
 ### Settings
 
-There is not much what can be changed here. The main changes can be done by altering **.env** file.
+There is not much what can be changed here. The main changes can be done by altering **.env** file. See section 
+[Prerequisites](#prerequisites).
+
+Be aware that prefix (such as *S3_CONNECTOR* is followed by two underscores *__*)!
 
 ### Logging
 
@@ -75,3 +81,7 @@ docker compose up -d
 
 Also in **docker-compose.yml** files there is flag `restart: unless-stopped`, and thus after rebooting the machine,
 script will restart automatically.
+
+Also package is being automatically published to GitHub Container Repository 
+[dhr-download-stac-relay](ghcr.io/matejkaj-cesnet/dhr-download-stac-relay) using workflow specified in
+**.github/workflows/publish-ghcr.yml**. It can thus be run as a Kubernetes deployment.
