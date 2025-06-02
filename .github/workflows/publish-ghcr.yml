@@ -18,5 +18,5 @@ jobs:
 
       - name: Build and push the image
         run: |
-          docker build . --tag ghcr.io/${{ github.repository_owner }}/dhr-download-stac-relay:latest
-          docker push ghcr.io/${{ github.repository_owner }}/dhr-download-stac-relay:latest
+          docker build . --tag ghcr.io/${{ github.actor }}/dhr-download-stac-relay:latest
+          docker push ghcr.io/${{ github.actor }}/dhr-download-stac-relay:latest
