@@ -12,10 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GHCRPAT_DHRDOWNLOADSTACRELAY }}
 
       - name: Build and push the image
         run: |
-          docker build . --tag ghcr.io/${{ github.actor }}/dhr-download-stac-relay:latest
-          docker push ghcr.io/${{ github.actor }}/dhr-download-stac-relay:latest
+          docker build . --tag ghcr.io/${{ github.repository_owner }}/dhr-download-stac-relay:latest
+          docker push ghcr.io/${{ github.repository_owner }}/dhr-download-stac-relay:latest
