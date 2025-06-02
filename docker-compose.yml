@@ -1,7 +1,7 @@
 services:
   dhr-download-stac-relay:
     #build: ./
-    image: ghcr.io/matejkaj-cesnet/dhr-download-stac-relay-ghcr:latest
+    image: ghcr.io/matejkaj-cesnet/dhr-download-stac-relay:latest
     ports:
       - "8080:8080"
     env_file:
