@@ -5,15 +5,15 @@ import botocore.exceptions
 
 from pathlib import Path
 
-import config.variables as variables
+import env
 
 class S3Connector:
     def __init__(
             self,
-            s3_endpoint,
-            access_key,
-            secret_key,
-            host_bucket,
+            s3_endpoint=env.S3_CONNECTOR__LANDSAT['host_base'],
+            access_key=env.S3_CONNECTOR__LANDSAT['access_key'],
+            secret_key=env.S3_CONNECTOR__LANDSAT['secret_key'],
+            host_bucket=env.S3_CONNECTOR__LANDSAT['host_bucket'],
             logger=logging.getLogger("S3Connector"),
             service_name='s3'
     ):

@@ -22,7 +22,7 @@ S3_CONNECTOR__ACCESS_KEY="1234567890ABCDEFGHIJ"
 S3_CONNECTOR__SECRET_KEY="123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcde"
 ```
 
-Note: file **example.env** can be renamed to just **.env** and filled by user as desired.
+Note: file **.env_example** can be renamed to just **.env** and filled by user as desired.
 
 ### Settings
 

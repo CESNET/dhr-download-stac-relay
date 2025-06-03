@@ -1,25 +1,25 @@
 import logging
 import mimetypes
 
-from sanic import Sanic, response, exceptions
+from sanic import Sanic, response
 
 from s3_connector import S3Connector
 
-from config.variables import *
+import env
 
 
 class SanicServer():
     _logger: logging.Logger = None
     _app: Sanic = None
 
-    def __init__(self, logger=logging.Logger(BASE__APP_NAME)):
+    def __init__(self, logger=logging.Logger(env.BASE__APP_NAME)):
         self._logger = logger
 
-        self._app = Sanic(BASE__APP_NAME)
+        self._app = Sanic(env.BASE__APP_NAME)
         self.register_routes()
 
     def run(self):
-        self._app.run(host=SANIC__SERVER_HOST, port=SANIC__SERVER_PORT)
+        self._app.run(host=env.SANIC__SERVER_HOST, port=env.SANIC__SERVER_PORT)
 
     def get_app(self):
         return self._app
@@ -43,10 +43,10 @@ class SanicServer():
 
             try:
                 s3_connector = S3Connector(
-                    s3_endpoint=S3_CONNECTOR__LANDSAT['host_base'],
-                    access_key=S3_CONNECTOR__LANDSAT['access_key'],
-                    secret_key=S3_CONNECTOR__LANDSAT['secret_key'],
-                    host_bucket=S3_CONNECTOR__LANDSAT['host_bucket'],
+                    s3_endpoint=env.S3_CONNECTOR__LANDSAT['host_base'],
+                    access_key=env.S3_CONNECTOR__LANDSAT['access_key'],
+                    secret_key=env.S3_CONNECTOR__LANDSAT['secret_key'],
+                    host_bucket=env.S3_CONNECTOR__LANDSAT['host_bucket'],
                     logger=self._logger
                 )
 
