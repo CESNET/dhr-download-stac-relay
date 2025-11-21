@@ -64,8 +64,8 @@ class SanicServer():
                 self._logger.error(f"[{str(request.id)}] Exception occurred: {str(e)}")
                 return response.json({"error": "Bad request"}, status=400)
 
-        @self._app.get("/era5/<path:path>")
-        async def slash_era5_parser(request, path):
+        @self._app.get("/e-obs/<path:path>")
+        async def slash_eobs_parser(request, path):
             self._logger.info(
                 f"[{str(request.id)}]; "
                 f"Client IP: {request.client_ip}; "
@@ -74,10 +74,10 @@ class SanicServer():
 
             try:
                 s3_connector = S3Connector(
-                    s3_endpoint=env.S3_CONNECTOR__ERA5['host_base'],
-                    access_key=env.S3_CONNECTOR__ERA5['access_key'],
-                    secret_key=env.S3_CONNECTOR__ERA5['secret_key'],
-                    host_bucket=env.S3_CONNECTOR__ERA5['host_bucket'],
+                    s3_endpoint=env.S3_CONNECTOR__EOBS['host_base'],
+                    access_key=env.S3_CONNECTOR__EOBS['access_key'],
+                    secret_key=env.S3_CONNECTOR__EOBS['secret_key'],
+                    host_bucket=env.S3_CONNECTOR__EOBS['host_bucket'],
                     logger=self._logger
                 )
 
