@@ -23,6 +23,13 @@ S3_CONNECTOR__ERA5: dict[str, str] = {
     'secret_key': os.environ.get("S3_CONNECTOR__ERA5_SECRET_KEY")
 }
 
+S3_CONNECTOR__EOBS: dict[str, str] = {
+    'host_base': os.environ.get("S3_CONNECTOR__EOBS_HOST_BASE"),
+    'host_bucket': os.environ.get("S3_CONNECTOR__EOBS_HOST_BUCKET"),
+    'access_key': os.environ.get("S3_CONNECTOR__EOBS_ACCESS_KEY"),
+    'secret_key': os.environ.get("S3_CONNECTOR__EOBS_SECRET_KEY")
+}
+
 LOGGER__NAME: str = os.environ.get("LOGGER__NAME", default=BASE__APP_NAME)
 LOGGER__LOG_DIRECTORY: str = os.environ.get("LOGGER__LOG_DIRECTORY", default="./log")
 LOGGER__LOG_FILENAME: str = os.environ.get("LOGGER__LOG_FILENAME", default=f"{BASE__APP_NAME}.log")

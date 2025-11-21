@@ -64,6 +64,37 @@ class SanicServer():
                 self._logger.error(f"[{str(request.id)}] Exception occurred: {str(e)}")
                 return response.json({"error": "Bad request"}, status=400)
 
+        @self._app.get("/era5/<path:path>")
+        async def slash_era5_parser(request, path):
+            self._logger.info(
+                f"[{str(request.id)}]; "
+                f"Client IP: {request.client_ip}; "
+                f"Path args: {request.raw_url.decode('utf-8')}"
+            )
+
+            try:
+                s3_connector = S3Connector(
+                    s3_endpoint=env.S3_CONNECTOR__ERA5['host_base'],
+                    access_key=env.S3_CONNECTOR__ERA5['access_key'],
+                    secret_key=env.S3_CONNECTOR__ERA5['secret_key'],
+                    host_bucket=env.S3_CONNECTOR__ERA5['host_bucket'],
+                    logger=self._logger
+                )
+
+                s3_key = path.lstrip("/")
+
+                fileshare_url = s3_connector.generate_fileshare_url(key=s3_key)
+
+                self._logger.info(
+                    f"[{str(request.id)}]; "
+                    f"Redirecting to: {fileshare_url}"
+                )
+                return response.redirect(fileshare_url)
+
+            except Exception as e:
+                self._logger.error(f"[{str(request.id)}] Exception occurred: {str(e)}")
+                return response.json({"error": "Bad request"}, status=400)
+
         @self._app.get("/landsat/<path:path>")
         async def slash_landsat_parser(request, path):
             self._logger.info(
