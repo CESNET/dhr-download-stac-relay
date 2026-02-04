@@ -7,6 +7,8 @@ from s3_connector import S3Connector
 
 import env
 
+import basic_auth
+
 
 class SanicServer():
     _logger: logging.Logger = None
@@ -148,3 +150,43 @@ class SanicServer():
             except Exception as e:
                 self._logger.error(f"[{str(request.id)}] Exception occurred: {str(e)}")
                 return response.json({"error": "Bad request"}, status=400)
+
+        async def handle_focal_request(request, path):
+            self._logger.info(
+                f"[{str(request.id)}]; "
+                f"Client IP: {request.client_ip}; "
+                f"Path args: {request.raw_url.decode('utf-8')}"
+            )
+
+            try:
+                s3_connector = S3Connector(
+                    s3_endpoint=env.S3_CONNECTOR__FOCAL['host_base'],
+                    access_key=env.S3_CONNECTOR__FOCAL['access_key'],
+                    secret_key=env.S3_CONNECTOR__FOCAL['secret_key'],
+                    host_bucket=env.S3_CONNECTOR__FOCAL['host_bucket'],
+                    logger=self._logger
+                )
+
+                s3_key = path.lstrip("/")
+
+                fileshare_url = s3_connector.generate_fileshare_url(key=s3_key)
+
+                self._logger.info(
+                    f"[{str(request.id)}]; "
+                    f"Redirecting to: {fileshare_url}"
+                )
+                return response.redirect(fileshare_url)
+
+            except Exception as e:
+                self._logger.error(f"[{str(request.id)}] Exception occurred: {str(e)}")
+                return response.json({"error": "Bad request"}, status=400)
+
+        @self._app.get("/focal/<path:path>")
+        async def slash_focal_parser(request, path):
+            return await handle_focal_request(request, path)
+
+
+        @self._app.get("/focal/nukleus/<path:path>")
+        @basic_auth.focal_auth()
+        async def slash_focal_nukleus_parser(request, path):
+            return await handle_focal_request(request, f"nukleus/{path}")

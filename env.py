@@ -1,3 +1,4 @@
+import json
 import os
 
 from dotenv import load_dotenv
@@ -8,6 +9,8 @@ BASE__APP_NAME: str = os.environ.get("BASE__APP_NAME", default="dhr-download-sta
 
 SANIC__SERVER_HOST: str = os.environ.get("SANIC__SERVER_HOST", default="0.0.0.0")
 SANIC__SERVER_PORT: int = int(os.environ.get("SANIC__SERVER_PORT", default=8080))
+
+SANIC__FOCAL_AUTH: dict[str, str] = json.loads(os.environ.get("SANIC__FOCAL_AUTH", default={}))
 
 S3_CONNECTOR__LANDSAT: dict[str, str] = {
     'host_base': os.environ.get("S3_CONNECTOR__LANDSAT_HOST_BASE"),
@@ -28,6 +31,13 @@ S3_CONNECTOR__EOBS: dict[str, str] = {
     'host_bucket': os.environ.get("S3_CONNECTOR__EOBS_HOST_BUCKET"),
     'access_key': os.environ.get("S3_CONNECTOR__EOBS_ACCESS_KEY"),
     'secret_key': os.environ.get("S3_CONNECTOR__EOBS_SECRET_KEY")
+}
+
+S3_CONNECTOR__FOCAL: dict[str, str] = {
+    'host_base': os.environ.get("S3_CONNECTOR__FOCAL_HOST_BASE"),
+    'host_bucket': os.environ.get("S3_CONNECTOR__FOCAL_HOST_BUCKET"),
+    'access_key': os.environ.get("S3_CONNECTOR__FOCAL_ACCESS_KEY"),
+    'secret_key': os.environ.get("S3_CONNECTOR__FOCAL_SECRET_KEY")
 }
 
 LOGGER__NAME: str = os.environ.get("LOGGER__NAME", default=BASE__APP_NAME)
