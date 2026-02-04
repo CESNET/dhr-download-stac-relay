@@ -1,4 +1,4 @@
-name: Create Docker GHCR Package
+name: Build and publish Docker GHCR Package
 
 on:
   push
