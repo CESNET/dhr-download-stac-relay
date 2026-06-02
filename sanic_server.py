@@ -3,11 +3,9 @@ import mimetypes
 
 from sanic import Sanic, response
 
-from s3_connector import S3Connector
-
-import env
-
 import basic_auth
+import env
+from s3_connector import S3Connector
 
 
 class SanicServer():
@@ -185,8 +183,12 @@ class SanicServer():
         async def slash_focal_parser(request, path):
             return await handle_focal_request(request, path)
 
-
         @self._app.get("/focal/nukleus/<path:path>")
         @basic_auth.focal_auth()
         async def slash_focal_nukleus_parser(request, path):
             return await handle_focal_request(request, f"nukleus/{path}")
+
+        @self._app.get("/focal/nukleus-indices/<path:path>")
+        @basic_auth.focal_auth()
+        async def slash_focal_nukleus_indices_parser(request, path):
+            return await handle_focal_request(request, f"nukleus-indices/{path}")
