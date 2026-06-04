@@ -1,157 +1,138 @@
-import boto3
-import logging
-
-import botocore.exceptions
-
 from pathlib import Path
+from typing import BinaryIO
 
-import env
+import boto3
+from botocore.exceptions import ClientError
+
 
 class S3Connector:
     def __init__(
             self,
-            s3_endpoint=env.S3_CONNECTOR__LANDSAT['host_base'],
-            access_key=env.S3_CONNECTOR__LANDSAT['access_key'],
-            secret_key=env.S3_CONNECTOR__LANDSAT['secret_key'],
-            host_bucket=env.S3_CONNECTOR__LANDSAT['host_bucket'],
-            logger=logging.getLogger("S3Connector"),
-            service_name='s3'
+            host_base: str,
+            access_key: str,
+            secret_key: str,
+            host_bucket: str,
+            logger,
+            service_name: str = "s3",
     ):
-        """
-        Constructor of S3Connector class
-
-        :param logger:
-        :param service_name:
-        :param s3_endpoint:
-        :param access_key:
-        :param secret_key:
-        :param host_bucket:
-        """
         self._logger = logger
+        self._bucket = host_bucket
+
         self._s3_client = boto3.client(
             service_name=service_name,
-            endpoint_url=s3_endpoint,
+            endpoint_url=host_base,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
         )
-        self._bucket = host_bucket
 
-    def get_bucket(self):
+        self._logger.debug(f"S3 client initialized for bucket={host_bucket} endpoint={host_base}")
+
+    @property
+    def bucket(self) -> str:
         return self._bucket
 
-    def get_s3_client(self):
+    @property
+    def client(self):
         return self._s3_client
 
-    def upload_file(self, local_file, bucket_key):
-        """
-        Uploads local_file to S3 storage as host_bucket/bucket_key
+    def upload_file(self, local_file: str | Path, bucket_key: str) -> None:
+        local_file = Path(local_file)
 
-        :param local_file: Absolute path to local file
-        :param bucket_key: bucket_key
-        :return: nothing
-        """
-
-        local_file = str(local_file)
-        self._logger.info(f"Uploading file={local_file} to S3 as key={bucket_key}.")
-        self._s3_client.upload_file(local_file, self._bucket, bucket_key)
-
-    def download_file(self, path_to_download, bucket_key):
-        """
-        Method downloads file from S3 storage into local file
-
-        :param path_to_download: absolute Path to local file into which file is downloaded
-        :param bucket_key: key of downloaded file. It will be used as follows: host_bucket/bucket_key
-        :return: nothing
-        :raise: botocore.exceptions.ClientError
-        """
-        self._logger.info(f"Downloading S3 key={bucket_key} into file={str(path_to_download)}.")
-
-        Path(path_to_download).unlink(missing_ok=True)
-        Path(path_to_download).parent.mkdir(parents=True, exist_ok=True)
+        self._logger.info(f"Uploading file={local_file} to key={bucket_key}")
 
         try:
-            with open(path_to_download, 'wb') as downloaded_file:
-                self._s3_client.download_fileobj(self._bucket, bucket_key, downloaded_file)
+            self._s3_client.upload_file(str(local_file), self._bucket, bucket_key)
 
-        except botocore.exceptions.ClientError as e:
-            raise e
+        except ClientError:
+            self._logger.exception(f"Upload failed for key={bucket_key}")
+            raise
 
-    def delete_key(self, bucket_key):
-        """
-        Deletes key from S3 storage
+    def download_file(self, path: str | Path, bucket_key: str) -> None:
+        path = Path(path)
 
-        :param bucket_key: deleted key, used as follows host_bucket/bucket_key
-        :return: nothing
-        """
-        self._logger.info(f"Deleting S3 key={bucket_key}.")
-        self._s3_client.delete_object(Bucket=self._bucket, Key=bucket_key)
+        self._logger.info(f"Downloading key={bucket_key} into file={path}")
 
-    def check_if_key_exists(self, bucket_key, expected_length=None):
-        """
-        Method checks whether this file already exists on S3 storage.
-
-        :param bucket_key: S3 key of the checked file
-        :param expected_length: [int] Expected lenght of file in bytes, or None if we do not want to check size
-        :return: True if file exists and its size on storage equals to expected_lenght, otherwise False
-        :raise: botocore.exceptions.ClientError for every error other than HTTP/404
-        """
-
-        bucket_key = str(bucket_key)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            key_head = self._s3_client.head_object(Bucket=self._bucket, Key=bucket_key)
-        except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == "404":
-                # File/key does not exist
-                return False
-            else:
-                # This can be HTTP 403, or other error
-                raise e
+            self._s3_client.download_file(self._bucket, bucket_key, str(path))
 
-        # File exists...
+        except ClientError:
+            self._logger.exception(f"Download failed for key={bucket_key}")
+            raise
 
-        if expected_length is not None:
-            # We have to check sizes
-            if str(key_head['ContentLength']) == expected_length:
-                # ...and have the right size
-                return True
-            else:
-                # ...but does not have the right size. Let's delete this key and download it again.
-                self._logger.warning(
-                    f"S3 key {bucket_key} length ({key_head['ContentLength']} b) does not match expected length " +
-                    f"({expected_length} b)"
-                )
-                self.delete_key(bucket_key)
+    def delete_key(self, bucket_key: str) -> None:
+        try:
+            self._s3_client.delete_object(Bucket=self._bucket, Key=bucket_key)
+
+        except ClientError:
+            self._logger.exception(f"Delete failed for key={bucket_key}")
+            raise
+
+    def key_exists(self, bucket_key: str, expected_length: int | None = None) -> bool:
+        try:
+            metadata = self._s3_client.head_object(
+                Bucket=self._bucket,
+                Key=bucket_key,
+            )
+
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code")
+
+            if error_code in ("404", "NoSuchKey"):
                 return False
-        else:
-            # We do not have to check sizes, file exists and that's enough
+
+            raise
+
+        if expected_length is None:
             return True
 
-    def list_files(self, directory_path):
-        response = self._s3_client.list_objects_v2(
-            Bucket=self._bucket,
-            Prefix=directory_path.rstrip('/') + '/',
-        )
-        # Check if any content is returned
-        if 'Contents' in response:
-            return [obj['Key'] for obj in response['Contents']]
-        else:
+        actual_length = metadata["ContentLength"]
+
+        if actual_length != expected_length:
+            self._logger.warning(
+                f"Key={bucket_key} size mismatch (actual: {actual_length} != expected: {expected_length})"
+            )
+            return False
+
+        return True
+
+    def list_files(self, prefix: str) -> list[str]:
+        try:
+            response = self._s3_client.list_objects_v2(
+                Bucket=self._bucket,
+                Prefix=prefix.rstrip("/") + "/",
+            )
+
+        except ClientError:
+            self._logger.exception(f"List failed for prefix={prefix}")
             return []
 
-    def get_file_object(self, key):
-        return self._s3_client.get_object(Bucket=self._bucket, Key=key)
+        return [obj["Key"] for obj in response.get("Contents", [])]
 
-    def fetch_from_tar_by_range(self, key:str, offset, size):
-        byte_range = f"bytes={offset}-{offset + size - 1}"
-        response = self._s3_client.get_object(Bucket=self._bucket, Key=key, Range=byte_range)
-        return response['Body'].read()
-
-    def generate_fileshare_url(self, key):
-        url = self._s3_client.generate_presigned_url(
-            ClientMethod='get_object',
-            Params={
-                'Bucket': self._bucket,
-                'Key': key
-            }
+    def get_file_object(self, key: str):
+        return self._s3_client.get_object(
+            Bucket=self._bucket,
+            Key=key,
         )
-        return url
+
+    def fetch_range_from_tar(self, key: str, offset: int, size: int) -> BinaryIO:
+        byte_range = f"bytes={offset}-{offset + size - 1}"
+
+        response = self._s3_client.get_object(
+            Bucket=self._bucket,
+            Key=key,
+            Range=byte_range,
+        )
+
+        return response["Body"]
+
+    def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
+        return self._s3_client.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={
+                "Bucket": self._bucket,
+                "Key": key,
+            },
+            ExpiresIn=expires_in,
+        )

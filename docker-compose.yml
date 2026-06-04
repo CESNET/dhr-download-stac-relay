@@ -1,6 +1,6 @@
 services:
   dhr-download-stac-relay:
-    #build: ./
+    # build: ./
     image: ghcr.io/matejkaj-cesnet/dhr-download-stac-relay:latest
     ports:
       - "8080:8080"
