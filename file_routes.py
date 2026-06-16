@@ -3,7 +3,7 @@ import mimetypes
 from typing import Iterator
 
 from sanic import Blueprint, BadRequest, ServerError
-from sanic.response import json, raw, redirect
+from sanic.response import raw, redirect, HTTPResponse
 
 from auth import auth_required
 from config import config
@@ -49,7 +49,7 @@ def create_s3_connector(service_name: str) -> S3Connector:
     )
 
 
-def handle_landsat_range_request(request, s3_client: S3Connector, key: str, ):
+def handle_landsat_range_request(request, s3_client: S3Connector, key: str):
     tar_member = request.args.get("tarMemberFile")
     offset_str = request.args.get("offset")
     size_str = request.args.get("size")
@@ -64,20 +64,29 @@ def handle_landsat_range_request(request, s3_client: S3Connector, key: str, ):
     if not tar_member or offset < 0 or size <= 0:
         return None
 
-    s3_stream = s3_client.fetch_range_from_tar(key, offset, size)
-
     content_type = mimetypes.guess_type(tar_member)[0] or "application/octet-stream"
 
-    logger.info(f"[{request.id}] Streaming file={tar_member} offset={offset} size={size}")
+    headers = {
+        "Content-Type": content_type,
+        "Content-Disposition": f"attachment; filename={tar_member}",
+        "Content-Length": str(size),
+        "Accept-Ranges": "bytes",
+    }
+
+    if request.method == "HEAD":
+        return HTTPResponse(
+            status=200,
+            headers=headers,
+        )
+
+    logger.info(f"[{request.id}] Streaming file={tar_member}, offset={offset}, size={size}")
+
+    s3_stream = s3_client.fetch_range_from_tar(key, offset, size)
 
     return raw(
         _stream_s3_body(s3_stream),
         content_type=content_type,
-        headers={
-            "Content-Disposition": f"attachment; filename={tar_member}",
-            "Content-Length": str(size),
-            "Accept-Ranges": "bytes",
-        },
+        headers=headers,
     )
 
 
@@ -88,15 +97,29 @@ def handle_request_logic(request, path: str, service_name: str, extra_path_prefi
         return BadRequest("Invalid path")
 
     try:
-        s3_client = create_s3_connector(service_name)
+        s3_connector = create_s3_connector(service_name)
 
         if service_name == "landsat":
-            response = handle_landsat_range_request(request, s3_client, full_path)
+            response = handle_landsat_range_request(request, s3_connector, full_path)
 
             if response is not None:
                 return response
 
-        presigned_url = s3_client.generate_presigned_url(full_path)
+        if request.method == "HEAD":
+            metadata = s3_connector.head_object(full_path)
+
+            return HTTPResponse(
+                status=200,
+                headers={
+                    "Content-Length": str(metadata["ContentLength"]),
+                    "Content-Type": metadata.get(
+                        "ContentType",
+                        "application/octet-stream",
+                    ),
+                },
+            )
+
+        presigned_url = s3_connector.generate_presigned_url(full_path)
 
         logger.info(f"[{request.id}] Redirecting to presigned URL {presigned_url}")
 
@@ -113,38 +136,38 @@ def handle_request_logic(request, path: str, service_name: str, extra_path_prefi
 # ---------------------------------------------------------------------
 
 
-@bp.get("/era5/<path:path>")
+@bp.route("/era5/<path:path>", methods=["GET", "HEAD"])
 async def era5_handler(request, path):
     log_request(request, path)
     return handle_request_logic(request, path, "era5")
 
 
-@bp.get("/e-obs/<path:path>")
+@bp.route("/e-obs/<path:path>", methods=["GET", "HEAD"])
 async def eobs_handler(request, path):
     log_request(request, path)
     return handle_request_logic(request, path, "eobs")
 
 
-@bp.get("/landsat/<path:path>")
+@bp.route("/landsat/<path:path>", methods=["GET", "HEAD"])
 async def landsat_handler(request, path):
     log_request(request, path)
     return handle_request_logic(request, path, "landsat")
 
 
-@bp.get("/focal/<path:path>")
+@bp.route("/focal/<path:path>", methods=["GET", "HEAD"])
 async def focal_handler(request, path):
     log_request(request, path)
     return handle_request_logic(request, path, "focal")
 
 
-@bp.get("/focal/nukleus/<path:path>")
+@bp.route("/focal/nukleus/<path:path>", methods=["GET", "HEAD"])
 @auth_required("focal")
 async def focal_nukleus_handler(request, path):
     log_request(request, path)
     return handle_request_logic(request, path, "focal", extra_path_prefix="nukleus")
 
 
-@bp.get("/focal/nukleus-indices/<path:path>")
+@bp.route("/focal/nukleus-indices/<path:path>", methods=["GET", "HEAD"])
 @auth_required("focal")
 async def focal_nukleus_indices_handler(request, path):
     log_request(request, path)

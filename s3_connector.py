@@ -136,3 +136,6 @@ class S3Connector:
             },
             ExpiresIn=expires_in,
         )
+
+    def head_object(self, key: str) -> dict:
+        return self._s3_client.head_object(Bucket=self._bucket, Key=key)
