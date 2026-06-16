@@ -1,9 +1,8 @@
 import logging
 import mimetypes
-from typing import Iterator
 
 from sanic import Blueprint, BadRequest, ServerError
-from sanic.response import raw, redirect, HTTPResponse
+from sanic.response import redirect, HTTPResponse, ResponseStream
 
 from auth import auth_required
 from config import config
@@ -12,22 +11,6 @@ from s3_connector import S3Connector
 logger = logging.getLogger(__name__)
 
 bp = Blueprint("file_routes", url_prefix="")
-
-
-def _stream_s3_body(s3_body) -> Iterator[bytes]:
-    """
-    Generator reading S3 StreamingBody in chunks.
-    Compatible with Sanic response.raw().
-    """
-    chunk_size = 8192
-
-    while True:
-        chunk = s3_body.read(chunk_size)
-
-        if not chunk:
-            break
-
-        yield chunk
 
 
 def log_request(request, path: str) -> None:
@@ -83,10 +66,23 @@ def handle_landsat_range_request(request, s3_client: S3Connector, key: str):
 
     s3_stream = s3_client.fetch_range_from_tar(key, offset, size)
 
-    return raw(
-        _stream_s3_body(s3_stream),
-        content_type=content_type,
+    async def streaming_function(response):
+        try:
+            while True:
+                chunk = s3_stream.read(8192)
+
+                if not chunk:
+                    break
+
+                await response.write(chunk)
+
+        finally:
+            s3_stream.close()
+
+    return ResponseStream(
+        streaming_function,
         headers=headers,
+        content_type=content_type,
     )
 
 

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import BinaryIO
+from botocore.response import StreamingBody
 
 import boto3
 from botocore.exceptions import ClientError
@@ -116,7 +116,7 @@ class S3Connector:
             Key=key,
         )
 
-    def fetch_range_from_tar(self, key: str, offset: int, size: int) -> BinaryIO:
+    def fetch_range_from_tar(self, key: str, offset: int, size: int) -> StreamingBody:
         byte_range = f"bytes={offset}-{offset + size - 1}"
 
         response = self._s3_client.get_object(
