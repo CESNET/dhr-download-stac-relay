@@ -15,6 +15,18 @@ logger = logging.getLogger(__name__)
 app_name = config.APP_NAME
 app = Sanic(app_name)
 
+# Disable sanic default logger handlers, propagate its messages to root logger defined in logging_config.py
+for logger_name in [
+    "sanic.root",
+    "sanic.error",
+    "sanic.access",
+    "sanic.server",
+    "sanic.websockets"
+]:
+    sanic_logger = logging.getLogger(logger_name)
+    sanic_logger.handlers.clear()
+    sanic_logger.propagate = True
+
 # Register blueprints
 app.blueprint(file_bp)
 
