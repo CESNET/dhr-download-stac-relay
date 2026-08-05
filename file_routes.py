@@ -17,6 +17,16 @@ def log_request(request, path: str) -> None:
     logger.info(f"[{request.id}] Client IP={request.client_ip} Path={path}")
 
 
+def log_file_info(request, s3_client: S3Connector, key: str) -> None:
+    try:
+        metadata = s3_client.head_object(key)
+
+        logger.info(f"[{request.id}] File size={metadata['ContentLength']} bytes")
+
+    except Exception as e:
+        logger.warning(f"[{request.id}] Failed to get file size: {e}")
+
+
 def create_s3_connector(service_name: str) -> S3Connector:
     cfg = config.get_s3_config(service_name)
 
@@ -118,6 +128,8 @@ def handle_request_logic(request, path: str, service_name: str, extra_path_prefi
         presigned_url = s3_connector.generate_presigned_url(full_path)
 
         logger.info(f"[{request.id}] Redirecting to presigned URL {presigned_url}")
+
+        log_file_info(request, s3_connector, full_path)
 
         return redirect(presigned_url)
 
