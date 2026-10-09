@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import mimetypes
+from functools import lru_cache
 
 from sanic import Blueprint, BadRequest, ServerError
 from sanic.response import redirect, HTTPResponse, ResponseStream
@@ -13,21 +15,19 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("file_routes", url_prefix="")
 
 
-def log_request(request, path: str) -> None:
-    logger.info(f"[{request.id}] Client IP={request.client_ip} Path={path}")
+async def run_blocking(func, *args, **kwargs):
+    """Run synchronous I/O outside the Sanic event loop."""
+    return await asyncio.to_thread(func, *args, **kwargs)
 
 
-def log_file_info(request, s3_client: S3Connector, key: str) -> None:
-    try:
-        metadata = s3_client.head_object(key)
-
-        logger.info(f"[{request.id}] File size={metadata['ContentLength']} bytes")
-
-    except Exception as e:
-        logger.warning(f"[{request.id}] Failed to get file size: {e}")
-
-
+@lru_cache(maxsize=None)
 def create_s3_connector(service_name: str) -> S3Connector:
+    """
+    Reuse an S3 client for each service within a worker process.
+
+    boto3 clients support concurrent use across threads. Do not share
+    clients across processes.
+    """
     cfg = config.get_s3_config(service_name)
 
     if cfg is None:
@@ -42,7 +42,11 @@ def create_s3_connector(service_name: str) -> S3Connector:
     )
 
 
-def handle_landsat_range_request(request, s3_client: S3Connector, key: str):
+async def handle_landsat_range_request(
+        request,
+        s3_client: S3Connector,
+        key: str,
+):
     tar_member = request.args.get("tarMemberFile")
     offset_str = request.args.get("offset")
     size_str = request.args.get("size")
@@ -54,14 +58,18 @@ def handle_landsat_range_request(request, s3_client: S3Connector, key: str):
     except ValueError:
         return BadRequest("Invalid offset or size parameters")
 
+    # This is not a TAR range request. Continue with normal handling.
     if not tar_member or offset < 0 or size <= 0:
         return None
 
-    content_type = mimetypes.guess_type(tar_member)[0] or "application/octet-stream"
+    content_type = (
+            mimetypes.guess_type(tar_member)[0]
+            or "application/octet-stream"
+    )
 
     headers = {
         "Content-Type": content_type,
-        "Content-Disposition": f"attachment; filename={tar_member}",
+        "Content-Disposition": f'attachment; filename="{tar_member}"',
         "Content-Length": str(size),
         "Accept-Ranges": "bytes",
     }
@@ -72,14 +80,23 @@ def handle_landsat_range_request(request, s3_client: S3Connector, key: str):
             headers=headers,
         )
 
-    logger.info(f"[{request.id}] Streaming file={tar_member}, offset={offset}, size={size}")
+    request_id = getattr(request.ctx, "request_id", request.id)
 
-    s3_stream = s3_client.fetch_range_from_tar(key, offset, size)
+    logger.info(f"[{request_id}] Streaming file={tar_member}, "        f"offset={offset}, size={size}")
+
+    # fetch_range_from_tar is synchronous, so run it in a worker thread.
+    s3_stream = await run_blocking(
+        s3_client.fetch_range_from_tar,
+        key,
+        offset,
+        size,
+    )
 
     async def streaming_function(response):
         try:
             while True:
-                chunk = s3_stream.read(8192)
+                # StreamingBody.read() performs blocking I/O.
+                chunk = await run_blocking(s3_stream.read, 8192)
 
                 if not chunk:
                     break
@@ -87,7 +104,8 @@ def handle_landsat_range_request(request, s3_client: S3Connector, key: str):
                 await response.write(chunk)
 
         finally:
-            s3_stream.close()
+            # Closing the stream may also perform blocking cleanup.
+            await run_blocking(s3_stream.close)
 
     return ResponseStream(
         streaming_function,
@@ -96,7 +114,12 @@ def handle_landsat_range_request(request, s3_client: S3Connector, key: str):
     )
 
 
-def handle_request_logic(request, path: str, service_name: str, extra_path_prefix: str = ""):
+async def handle_request_logic(
+        request,
+        path: str,
+        service_name: str,
+        extra_path_prefix: str = "",
+):
     full_path = f"{extra_path_prefix}/{path}".lstrip("/")
 
     if ".." in full_path:
@@ -106,13 +129,21 @@ def handle_request_logic(request, path: str, service_name: str, extra_path_prefi
         s3_connector = create_s3_connector(service_name)
 
         if service_name == "landsat":
-            response = handle_landsat_range_request(request, s3_connector, full_path)
+            response = await handle_landsat_range_request(
+                request,
+                s3_connector,
+                full_path,
+            )
 
             if response is not None:
                 return response
 
         if request.method == "HEAD":
-            metadata = s3_connector.head_object(full_path)
+            # S3 metadata lookup must not block the event loop.
+            metadata = await run_blocking(
+                s3_connector.head_object,
+                full_path,
+            )
 
             return HTTPResponse(
                 status=200,
@@ -125,16 +156,20 @@ def handle_request_logic(request, path: str, service_name: str, extra_path_prefi
                 },
             )
 
+        # Generating a presigned URL does not require contacting S3.
         presigned_url = s3_connector.generate_presigned_url(full_path)
 
-        logger.info(f"[{request.id}] Redirecting to presigned URL {presigned_url}")
+        request_id = getattr(request.ctx, "request_id", request.id)
 
-        log_file_info(request, s3_connector, full_path)
+        logger.info(f"[{request_id}] Redirecting to presigned URL: {presigned_url}")
 
+        # Do not make an extra HEAD request just to log the file size.
         return redirect(presigned_url)
 
     except Exception:
-        logger.exception(f"[{request.id}] Error processing request")
+        request_id = getattr(request.ctx, "request_id", request.id)
+
+        logger.exception(f"[{request_id}] Error processing request")
 
         return ServerError("Error processing request")
 
@@ -146,37 +181,41 @@ def handle_request_logic(request, path: str, service_name: str, extra_path_prefi
 
 @bp.route("/era5/<path:path>", methods=["GET", "HEAD"])
 async def era5_handler(request, path):
-    log_request(request, path)
-    return handle_request_logic(request, path, "era5")
+    return await handle_request_logic(request, path, "era5")
 
 
 @bp.route("/e-obs/<path:path>", methods=["GET", "HEAD"])
 async def eobs_handler(request, path):
-    log_request(request, path)
-    return handle_request_logic(request, path, "eobs")
+    return await handle_request_logic(request, path, "eobs")
 
 
 @bp.route("/landsat/<path:path>", methods=["GET", "HEAD"])
 async def landsat_handler(request, path):
-    log_request(request, path)
-    return handle_request_logic(request, path, "landsat")
+    return await handle_request_logic(request, path, "landsat")
 
 
 @bp.route("/focal/<path:path>", methods=["GET", "HEAD"])
 async def focal_handler(request, path):
-    log_request(request, path)
-    return handle_request_logic(request, path, "focal")
+    return await handle_request_logic(request, path, "focal")
 
 
 @bp.route("/focal/nukleus/<path:path>", methods=["GET", "HEAD"])
 @auth_required("focal")
 async def focal_nukleus_handler(request, path):
-    log_request(request, path)
-    return handle_request_logic(request, path, "focal", extra_path_prefix="nukleus")
+    return await handle_request_logic(
+        request,
+        path,
+        "focal",
+        extra_path_prefix="nukleus",
+    )
 
 
 @bp.route("/focal/nukleus-indices/<path:path>", methods=["GET", "HEAD"])
 @auth_required("focal")
 async def focal_nukleus_indices_handler(request, path):
-    log_request(request, path)
-    return handle_request_logic(request, path, "focal", extra_path_prefix="nukleus-indices")
+    return await handle_request_logic(
+        request,
+        path,
+        "focal",
+        extra_path_prefix="nukleus-indices",
+    )
